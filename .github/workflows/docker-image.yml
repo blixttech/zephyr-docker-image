@@ -1,0 +1,44 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - "**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Images
+        env:
+          REGISTRY_URL: ghcr.io
+          IMAGE_PREFIX: ${{ github.repository_owner }}/zephyr
+        run: make build
+
+      - name: Push Images
+        # Condition for when this step runs:
+        # 1. Not a development branch.
+        # 2. On a pull request merge (pull_request type 'closed' AND 'merged' is true)
+        # 3. On a direct push to any branch
+        # 4. On a new tag creation
+        if: |
+          !endsWith(github.ref, '-dev') &&
+          (github.event_name == 'pull_request' && github.event.pull_request.merged == true ||
+          github.event_name == 'push' && github.ref_type == 'branch' ||
+          startsWith(github.ref, 'refs/tags/'))
+        env:
+          REGISTRY_URL: ghcr.io
+          IMAGE_PREFIX: ${{ github.repository_owner }}/zephyr
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          make login
+          make push
